@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스마트 시간표 생성기 - 데모</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        .course-card {
+            transition: all 0.3s ease;
+        }
+        .course-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        .selected {
+            background-color: #dbeafe;
+            border-color: #3b82f6;
+        }
+        .timetable-grid {
+            display: grid;
+            grid-template-columns: 80px repeat(5, 1fr);
+            gap: 1px;
+            background-color: #e5e7eb;
+        }
+        .timetable-cell {
+            background-color: white;
+            min-height: 60px;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .timetable-header {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            color: #374151;
+        }
+        .course-slot {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 헤더 -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">
+                ⚡ 스마트 시간표 생성기
+            </h1>
+            <p class="text-lg text-gray-600">
+                수강신청 내역을 분석하여 최적의 시간표를 자동으로 생성합니다
+            </p>
+        </div>
+
+        <!-- 메인 컨테이너 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 좌측: 과목 선택 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                        📚 수강 가능 과목
+                    </h3>
+                    
+                    <!-- 검색 -->
+                    <div class="mb-4">
+                        <input type="text" id="searchInput" placeholder="과목명, 코드, 교수명으로 검색..."
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+
+                    <!-- 과목 목록 -->
+                    <div class="space-y-3 max-h-96 overflow-y-auto" id="courseList">
+                        <!-- 과목들이 여기에 동적으로 추가됩니다 -->
+                    </div>
+
+                    <!-- 선택된 과목 요약 -->
+                    <div class="mt-4 p-3 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-600">
+                            총 <span id="selectedCount">0</span>개 과목 선택됨
+                            <span class="ml-2 text-blue-600 font-medium">
+                                (<span id="totalCredits">0</span>학점)
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 우측: 선택된 과목 및 시간표 생성 -->
+            <div class="lg:col-span-2">
+                <!-- 선택된 과목 목록 -->
+                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                        선택된 과목 (<span id="selectedCount2">0</span>개)
+                    </h3>
+                    <div class="space-y-2 mb-6" id="selectedCoursesList">
+                        <!-- 선택된 과목들이 여기에 표시됩니다 -->
+                    </div>
+                    <button onclick="generateTimetable()" id="generateBtn"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                        ⚡ 최적 시간표 생성
+                    </button>
+                </div>
+
+                <!-- 생성된 시간표 -->
+                <div class="bg-white rounded-lg shadow-lg p-6" id="timetableSection" style="display: none;">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                        생성된 시간표
+                    </h3>
+                    <div class="timetable-grid" id="timetableGrid">
+                        <!-- 시간표 그리드가 여기에 표시됩니다 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 과목 데이터
+        const courses = [
+            {
+                id: '1',
+                name: '자료구조',
+                code: 'CS101',
+                professor: '김교수',
+                credit: 3,
+                priority: 8,
+                isRequired: true,
+                timeSlots: [
+                    { day: '월', startTime: '09:00', endTime: '10:30', room: 'A101' },
+                    { day: '수', startTime: '09:00', endTime: '10:30', room: 'A101' }
+                ]
+            },
+            {
+                id: '2',
+                name: '알고리즘',
+                code: 'CS102',
+                professor: '이교수',
+                credit: 3,
+                priority: 7,
+                isRequired: true,
+                timeSlots: [
+                    { day: '화', startTime: '11:00', endTime: '12:30', room: 'B201' },
+                    { day: '목', startTime: '11:00', endTime: '12:30', room: 'B201' }
+                ]
+            },
+            {
+                id: '3',
+                name: '데이터베이스',
+                code: 'CS103',
+                professor: '박교수',
+                credit: 3,
+                priority: 6,
+                isRequired: false,
+                timeSlots: [
+                    { day: '월', startTime: '14:00', endTime: '15:30', room: 'C301' },
+                    { day: '수', startTime: '14:00', endTime: '15:30', room: 'C301' }
+                ]
+            },
+            {
+                id: '4',
+                name: '웹프로그래밍',
+                code: 'CS104',
+                professor: '최교수',
+                credit: 3,
+                priority: 5,
+                isRequired: false,
+                timeSlots: [
+                    { day: '화', startTime: '16:00', endTime: '17:30', room: 'D401' },
+                    { day: '목', startTime: '16:00', endTime: '17:30', room: 'D401' }
+                ]
+            },
+            {
+                id: '5',
+                name: '컴퓨터네트워크',
+                code: 'CS105',
+                professor: '정교수',
+                credit: 3,
+                priority: 4,
+                isRequired: false,
+                timeSlots: [
+                    { day: '금', startTime: '10:00', endTime: '11:30', room: 'E501' },
+                    { day: '금', startTime: '12:00', endTime: '13:30', room: 'E501' }
+                ]
+            }
+        ];
+
+        let selectedCourses = [];
+        let filteredCourses = [...courses];
+
+        // 시간표 그리드 생성
+        function createTimetableGrid() {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = [
+                { time: '09:00', label: '1교시' },
+                { time: '10:30', label: '2교시' },
+                { time: '12:00', label: '3교시' },
+                { time: '13:30', label: '4교시' },
+                { time: '15:00', label: '5교시' },
+                { time: '16:30', label: '6교시' },
+                { time: '18:00', label: '7교시' }
+            ];
+
+            let gridHTML = `
+                <div class="timetable-header timetable-cell">시간</div>
+                ${days.map(day => `<div class="timetable-header timetable-cell">${day}요일</div>`).join('')}
+            `;
+
+            timeSlots.forEach((timeSlot, rowIndex) => {
+                gridHTML += `<div class="timetable-header timetable-cell">
+                    <div>${timeSlot.time}</div>
+                    <div class="text-xs text-gray-500">${timeSlot.label}</div>
+                </div>`;
+                
+                days.forEach(day => {
+                    const courseSlot = findCourseAtTime(day, timeSlot.time);
+                    gridHTML += `<div class="timetable-cell">
+                        ${courseSlot ? `
+                            <div class="course-slot">
+                                <div class="font-medium">${courseSlot.name}</div>
+                                <div class="text-xs opacity-75">${courseSlot.professor}</div>
+                                <div class="text-xs opacity-75">${courseSlot.room}</div>
+                            </div>
+                        ` : '-'}
+                    </div>`;
+                });
+            });
+
+            document.getElementById('timetableGrid').innerHTML = gridHTML;
+        }
+
+        // 특정 시간대에 수업이 있는지 찾기
+        function findCourseAtTime(day, time) {
+            for (let course of selectedCourses) {
+                for (let slot of course.timeSlots) {
+                    if (slot.day === day && slot.startTime === time) {
+                        return {
+                            name: course.name,
+                            professor: course.professor,
+                            room: slot.room
+                        };
+                    }
+                }
+            }
+            return null;
+        }
+
+        // 과목 선택/해제
+        function toggleCourse(courseId) {
+            const course = courses.find(c => c.id === courseId);
+            const index = selectedCourses.findIndex(c => c.id === courseId);
+            
+            if (index === -1) {
+                selectedCourses.push(course);
+            } else {
+                selectedCourses.splice(index, 1);
+            }
+            
+            renderCourses();
+            renderSelectedCourses();
+            updateCounts();
+        }
+
+        // 과목 목록 렌더링
+        function renderCourses() {
+            const courseList = document.getElementById('courseList');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            filteredCourses = courses.filter(course => 
+                course.name.toLowerCase().includes(searchTerm) ||
+                course.code.toLowerCase().includes(searchTerm) ||
+                course.professor.toLowerCase().includes(searchTerm)
+            );
+
+            courseList.innerHTML = filteredCourses.map(course => {
+                const isSelected = selectedCourses.some(c => c.id === course.id);
+                return `
+                    <div class="course-card p-3 border rounded-lg cursor-pointer ${isSelected ? 'selected' : ''}"
+                         onclick="toggleCourse('${course.id}')">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="flex items-center mb-1">
+                                    <h4 class="font-medium">${course.name}</h4>
+                                    ${course.isRequired ? '<span class="ml-2 px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">필수</span>' : ''}
+                                </div>
+                                <div class="text-sm text-gray-600 mb-2">
+                                    ${course.code} • ${course.professor} • ${course.credit}학점
+                                </div>
+                                <div class="space-y-1">
+                                    ${course.timeSlots.map(slot => `
+                                        <div class="text-xs text-gray-500">
+                                            🕐 ${slot.day} ${slot.startTime}-${slot.endTime} 📍 ${slot.room}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-medium text-gray-600 mb-2">
+                                    ⭐ ${course.priority}
+                                </div>
+                                <div class="w-4 h-4 rounded border-2 ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}">
+                                    ${isSelected ? '<div class="w-full h-full flex items-center justify-center"><div class="w-2 h-2 bg-white rounded-full"></div></div>' : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 선택된 과목 목록 렌더링
+        function renderSelectedCourses() {
+            const selectedList = document.getElementById('selectedCoursesList');
+            selectedList.innerHTML = selectedCourses.map(course => `
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div>
+                        <span class="font-medium">${course.name}</span>
+                        <span class="text-sm text-gray-500 ml-2">
+                            (${course.code}) - ${course.credit}학점
+                        </span>
+                    </div>
+                    <span class="text-sm text-blue-600">
+                        우선순위: ${course.priority}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        // 카운트 업데이트
+        function updateCounts() {
+            const count = selectedCourses.length;
+            const credits = selectedCourses.reduce((sum, course) => sum + course.credit, 0);
+            
+            document.getElementById('selectedCount').textContent = count;
+            document.getElementById('selectedCount2').textContent = count;
+            document.getElementById('totalCredits').textContent = credits;
+            
+            document.getElementById('generateBtn').disabled = count === 0;
+        }
+
+        // 시간표 생성
+        function generateTimetable() {
+            if (selectedCourses.length === 0) {
+                alert('최소 하나 이상의 과목을 선택해주세요.');
+                return;
+            }
+
+            // 충돌 검사
+            const conflicts = checkConflicts(selectedCourses);
+            
+            if (conflicts.length > 0) {
+                alert(`시간 충돌이 발견되었습니다:\n${conflicts.map(c => c.courses.map(course => course.name).join(', ')).join('\n')}`);
+                return;
+            }
+
+            // 시간표 표시
+            document.getElementById('timetableSection').style.display = 'block';
+            createTimetableGrid();
+            
+            alert('시간표가 성공적으로 생성되었습니다!');
+        }
+
+        // 충돌 검사
+        function checkConflicts(courses) {
+            const conflicts = [];
+            
+            for (let i = 0; i < courses.length; i++) {
+                for (let j = i + 1; j < courses.length; j++) {
+                    const course1 = courses[i];
+                    const course2 = courses[j];
+                    
+                    for (const slot1 of course1.timeSlots) {
+                        for (const slot2 of course2.timeSlots) {
+                            if (slot1.day === slot2.day && 
+                                slot1.startTime === slot2.startTime && 
+                                slot1.endTime === slot2.endTime) {
+                                conflicts.push({
+                                    courses: [course1, course2],
+                                    timeSlot: slot1
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return conflicts;
+        }
+
+        // 검색 기능
+        document.getElementById('searchInput').addEventListener('input', renderCourses);
+
+        // 초기 렌더링
+        renderCourses();
+        updateCounts();
+    </script>
+</body>
+</html>
+

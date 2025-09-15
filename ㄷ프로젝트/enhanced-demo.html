@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스마트 시간표 생성기 - 명지대 컴퓨터공학과 (50+ 과목)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        .course-card {
+            transition: all 0.3s ease;
+        }
+        .course-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        .selected {
+            background-color: #dbeafe;
+            border-color: #3b82f6;
+        }
+        .timetable-grid {
+            display: grid;
+            grid-template-columns: 80px repeat(5, 1fr);
+            gap: 1px;
+            background-color: #e5e7eb;
+        }
+        .timetable-cell {
+            background-color: white;
+            min-height: 60px;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .timetable-header {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            color: #374151;
+        }
+        .course-slot {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            text-align: center;
+        }
+        .course-slot.required {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+        }
+        .course-slot.elective {
+            background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+        }
+        .course-slot.general {
+            background: linear-gradient(135deg, #feca57 0%, #ff9ff3 100%);
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .filter-btn {
+            transition: all 0.3s ease;
+        }
+        .filter-btn.active {
+            background-color: #3b82f6;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 헤더 -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">
+                ⚡ 명지대학교 컴퓨터공학과 스마트 시간표 생성기
+            </h1>
+            <p class="text-lg text-gray-600">
+                50+ 과목 중에서 18학점의 현실적인 최적화된 시간표를 자동 생성합니다
+            </p>
+            <div class="mt-4 flex justify-center space-x-8 text-sm text-gray-500">
+                <div class="flex items-center">
+                    <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                    강의간격: 1교시 우선 (1순위)
+                </div>
+                <div class="flex items-center">
+                    <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                    연강제한: 4교시 이하 (2순위)
+                </div>
+                <div class="flex items-center">
+                    <span class="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                    목표 학점: 18학점
+                </div>
+            </div>
+        </div>
+
+        <!-- 통계 카드 -->
+        <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
+            <div class="stats-card rounded-lg p-4 text-center">
+                <div class="text-2xl font-bold" id="totalCourses">0</div>
+                <div class="text-sm opacity-90">총 과목 수</div>
+            </div>
+            <div class="stats-card rounded-lg p-4 text-center">
+                <div class="text-2xl font-bold" id="selectedCourses">0</div>
+                <div class="text-sm opacity-90">선택된 과목</div>
+            </div>
+            <div class="stats-card rounded-lg p-4 text-center">
+                <div class="text-2xl font-bold" id="totalCredits">0</div>
+                <div class="text-sm opacity-90">총 학점</div>
+            </div>
+            <div class="stats-card rounded-lg p-4 text-center">
+                <div class="text-2xl font-bold" id="freeTime">0</div>
+                <div class="text-sm opacity-90">공강 시간</div>
+            </div>
+            <div class="stats-card rounded-lg p-4 text-center">
+                <div class="text-2xl font-bold" id="continuousTime">0</div>
+                <div class="text-sm opacity-90">연강 시간</div>
+            </div>
+            <div class="stats-card rounded-lg p-4 text-center">
+                <div class="text-2xl font-bold" id="scheduleScore">0</div>
+                <div class="text-sm opacity-90">최적화 점수</div>
+            </div>
+        </div>
+
+        <!-- 최적화 설정 표시 -->
+        <div class="bg-white rounded-lg shadow-lg p-4 mb-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">🎯 최적화 설정</h3>
+                    <div class="flex items-center space-x-6 text-sm text-gray-600">
+                        <div class="flex items-center">
+                            <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                            강의간격: <strong>1교시</strong> (1순위)
+                        </div>
+                        <div class="flex items-center">
+                            <span class="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
+                            연강제한: <strong>4교시</strong> (2순위)
+                        </div>
+                        <div class="flex items-center">
+                            <span class="w-3 h-3 bg-purple-500 rounded-full mr-2"></span>
+                            목표 학점: <strong>18학점</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm text-gray-600 mb-1">현재 최적화 점수</div>
+                    <div class="text-2xl font-bold text-blue-600" id="currentScore">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 필터 및 검색 -->
+        <div class="bg-white rounded-lg shadow-lg p-4 mb-6">
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex-1 min-w-64">
+                    <input type="text" id="searchInput" placeholder="과목명, 코드, 교수명으로 검색..."
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                <div class="flex gap-2">
+                    <button class="filter-btn px-3 py-2 border border-gray-300 rounded-lg text-sm" data-filter="all">전체</button>
+                    <button class="filter-btn px-3 py-2 border border-gray-300 rounded-lg text-sm" data-filter="required">전공필수</button>
+                    <button class="filter-btn px-3 py-2 border border-gray-300 rounded-lg text-sm" data-filter="elective">전공선택</button>
+                    <button class="filter-btn px-3 py-2 border border-gray-300 rounded-lg text-sm" data-filter="general">교양</button>
+                </div>
+                <button onclick="autoSelectOptimal()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    🎯 18학점 최적화 완성<br>
+                    <span class="text-xs opacity-90">전공필수 3개, 교양/전공선택으로 완성</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 메인 컨테이너 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 좌측: 과목 목록 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                        📚 수강 가능 과목 (<span id="filteredCount">0</span>개)
+                    </h3>
+                    
+                    <!-- 과목 목록 -->
+                    <div class="space-y-3 max-h-96 overflow-y-auto" id="courseList">
+                        <!-- 과목들이 여기에 동적으로 추가됩니다 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 우측: 선택된 과목 및 시간표 -->
+            <div class="lg:col-span-2">
+                <!-- 선택된 과목 목록 -->
+                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                        선택된 과목 (<span id="selectedCount">0</span>개) - <span id="totalCredits2">0</span>학점
+                    </h3>
+                    <div class="space-y-2 mb-6" id="selectedCoursesList">
+                        <!-- 선택된 과목들이 여기에 표시됩니다 -->
+                    </div>
+                    <button onclick="generateTimetable()" id="generateBtn"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                        ⚡ 최적 시간표 생성
+                    </button>
+                </div>
+
+                <!-- 생성된 시간표 -->
+                <div class="bg-white rounded-lg shadow-lg p-6" id="timetableSection" style="display: none;">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                        생성된 시간표
+                    </h3>
+                    <div class="timetable-grid" id="timetableGrid">
+                        <!-- 시간표 그리드가 여기에 표시됩니다 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 50개 이상의 과목 데이터 생성 (공강 최적화)
+        const generateCourses = () => {
+            const professors = [
+                '김교수', '이교수', '박교수', '최교수', '정교수', '한교수', '조교수', '윤교수',
+                '강교수', '임교수', '서교수', '오교수', '장교수', '신교수', '문교수', '양교수'
+            ];
+
+            const rooms = [
+                'A101', 'A102', 'A103', 'A201', 'A202', 'A203', 'A301', 'A302',
+                'B101', 'B102', 'B103', 'B201', 'B202', 'B203', 'B301', 'B302',
+                'C101', 'C102', 'C103', 'C201', 'C202', 'C203', 'C301', 'C302'
+            ];
+
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = [
+                { start: '09:00', end: '10:30' },
+                { start: '10:30', end: '12:00' },
+                { start: '12:00', end: '13:30' },
+                { start: '13:30', end: '15:00' },
+                { start: '15:00', end: '16:30' },
+                { start: '16:30', end: '18:00' },
+                { start: '18:00', end: '19:30' }
+            ];
+
+            const courses = [];
+
+            // 전공필수 과목 (현실적으로 2-3개만)
+            const requiredCourses = [
+                { name: '자료구조', code: 'CS101' },
+                { name: '알고리즘', code: 'CS102' },
+                { name: '컴퓨터구조', code: 'CS103' }
+            ];
+
+            requiredCourses.forEach((course, index) => {
+                const professor = professors[index % professors.length];
+                // 전공필수는 강의간격 최적화를 위해 핵심 시간대에 배치
+                const timeSlot = timeSlots[index * 2]; // 0, 2, 4 시간대 (09:00, 12:00, 15:00)
+                const day1 = days[index % days.length];
+                const day2 = days[(index + 1) % days.length];
+                const room = rooms[index % rooms.length];
+
+                courses.push({
+                    id: course.code,
+                    name: course.name,
+                    code: course.code,
+                    professor,
+                    credit: 3,
+                    priority: 9,
+                    isRequired: true,
+                    category: 'required',
+                    timeSlots: [
+                        { day: day1, startTime: timeSlot.start, endTime: timeSlot.end, room },
+                        { day: day2, startTime: timeSlot.start, endTime: timeSlot.end, room }
+                    ]
+                });
+            });
+
+            // 전공선택 과목 (다양한 시간대와 공강 패턴)
+            const electiveCourses = [
+                { name: '웹프로그래밍', code: 'CS201' },
+                { name: '모바일프로그래밍', code: 'CS202' },
+                { name: '인공지능', code: 'CS203' },
+                { name: '머신러닝', code: 'CS204' },
+                { name: '컴퓨터그래픽스', code: 'CS205' },
+                { name: '게임프로그래밍', code: 'CS206' },
+                { name: '정보보안', code: 'CS207' },
+                { name: '클라우드컴퓨팅', code: 'CS208' },
+                { name: '빅데이터분석', code: 'CS209' },
+                { name: 'IoT프로그래밍', code: 'CS210' },
+                { name: '블록체인', code: 'CS211' },
+                { name: '사이버보안', code: 'CS212' },
+                { name: 'UI/UX디자인', code: 'CS213' },
+                { name: 'DevOps', code: 'CS214' },
+                { name: '마이크로서비스', code: 'CS215' },
+                { name: '쿠버네티스', code: 'CS216' },
+                { name: '도커', code: 'CS217' },
+                { name: 'React프로그래밍', code: 'CS218' },
+                { name: 'Node.js프로그래밍', code: 'CS219' },
+                { name: 'Python프로그래밍', code: 'CS220' },
+                { name: 'Java프로그래밍', code: 'CS221' },
+                { name: 'C++프로그래밍', code: 'CS222' },
+                { name: 'Go프로그래밍', code: 'CS223' },
+                { name: 'Rust프로그래밍', code: 'CS224' },
+                { name: 'Swift프로그래밍', code: 'CS225' },
+                { name: 'Kotlin프로그래밍', code: 'CS226' },
+                { name: 'TypeScript프로그래밍', code: 'CS227' },
+                { name: 'PHP프로그래밍', code: 'CS228' },
+                { name: 'Ruby프로그래밍', code: 'CS229' },
+                { name: 'C#프로그래밍', code: 'CS230' },
+                { name: 'Scala프로그래밍', code: 'CS231' },
+                { name: 'Haskell프로그래밍', code: 'CS232' },
+                { name: 'Clojure프로그래밍', code: 'CS233' },
+                { name: 'Erlang프로그래밍', code: 'CS234' },
+                { name: 'Elixir프로그래밍', code: 'CS235' },
+                { name: 'F#프로그래밍', code: 'CS236' },
+                { name: 'OCaml프로그래밍', code: 'CS237' },
+                { name: 'Lisp프로그래밍', code: 'CS238' },
+                { name: 'Prolog프로그래밍', code: 'CS239' },
+                { name: 'Assembly프로그래밍', code: 'CS240' },
+                { name: 'MATLAB프로그래밍', code: 'CS241' },
+                { name: 'R프로그래밍', code: 'CS242' },
+                { name: 'Julia프로그래밍', code: 'CS243' },
+                { name: 'Lua프로그래밍', code: 'CS244' },
+                { name: 'Perl프로그래밍', code: 'CS245' }
+            ];
+
+            electiveCourses.forEach((course, index) => {
+                const professor = professors[(index + 8) % professors.length];
+                // 강의간격 최적화를 위해 다양한 시간 패턴 생성
+                const timeIndex = (index + 2) % timeSlots.length; // 전공필수, 교양과 겹치지 않도록 오프셋
+                const timeSlot = timeSlots[timeIndex];
+                const day1 = days[(index + 2) % days.length];
+                const day2 = days[(index + 4) % days.length];
+                const room = rooms[(index + 8) % rooms.length];
+
+                courses.push({
+                    id: course.code,
+                    name: course.name,
+                    code: course.code,
+                    professor,
+                    credit: 3,
+                    priority: Math.floor(Math.random() * 5) + 5, // 5-9
+                    isRequired: false,
+                    category: 'elective',
+                    timeSlots: [
+                        { day: day1, startTime: timeSlot.start, endTime: timeSlot.end, room },
+                        { day: day2, startTime: timeSlot.start, endTime: timeSlot.end, room }
+                    ]
+                });
+            });
+
+            // 교양 과목 (공강 시간대 활용)
+            const generalCourses = [
+                { name: '영어회화', code: 'GE101' },
+                { name: '중국어', code: 'GE102' },
+                { name: '일본어', code: 'GE103' },
+                { name: '철학개론', code: 'GE104' },
+                { name: '심리학개론', code: 'GE105' },
+                { name: '경제학개론', code: 'GE106' },
+                { name: '사회학개론', code: 'GE107' },
+                { name: '역사학개론', code: 'GE108' },
+                { name: '문학개론', code: 'GE109' },
+                { name: '예술사', code: 'GE110' },
+                { name: '음악사', code: 'GE111' },
+                { name: '체육', code: 'GE112' },
+                { name: '생활체육', code: 'GE113' },
+                { name: '봉사활동', code: 'GE114' },
+                { name: '창업론', code: 'GE115' },
+                { name: '논리학', code: 'GE116' },
+                { name: '윤리학', code: 'GE117' },
+                { name: '환경학', code: 'GE118' },
+                { name: '과학사', code: 'GE119' },
+                { name: '수학사', code: 'GE120' },
+                { name: '독일어', code: 'GE121' },
+                { name: '프랑스어', code: 'GE122' },
+                { name: '스페인어', code: 'GE123' },
+                { name: '러시아어', code: 'GE124' },
+                { name: '아랍어', code: 'GE125' },
+                { name: '정치학개론', code: 'GE126' },
+                { name: '법학개론', code: 'GE127' },
+                { name: '교육학개론', code: 'GE128' },
+                { name: '행정학개론', code: 'GE129' },
+                { name: '국제관계론', code: 'GE130' },
+                { name: '문화인류학', code: 'GE131' },
+                { name: '지리학개론', code: 'GE132' },
+                { name: '생물학개론', code: 'GE133' },
+                { name: '화학개론', code: 'GE134' },
+                { name: '물리학개론', code: 'GE135' },
+                { name: '통계학개론', code: 'GE136' },
+                { name: '컴퓨터활용', code: 'GE137' },
+                { name: '정보처리론', code: 'GE138' },
+                { name: '미술사', code: 'GE139' },
+                { name: '영화사', code: 'GE140' },
+                { name: '연극사', code: 'GE141' },
+                { name: '음악사', code: 'GE142' },
+                { name: '무용사', code: 'GE143' },
+                { name: '건축사', code: 'GE144' },
+                { name: '디자인사', code: 'GE145' },
+                { name: '패션사', code: 'GE146' },
+                { name: '요리사', code: 'GE147' },
+                { name: '여행학', code: 'GE148' },
+                { name: '관광학', code: 'GE149' },
+                { name: '호텔경영학', code: 'GE150' }
+            ];
+
+            generalCourses.forEach((course, index) => {
+                const professor = professors[(index + 16) % professors.length];
+                // 교양은 강의간격 최적화를 위해 다양한 시간대에 배치
+                const timeIndex = (index + 1) % timeSlots.length; // 전공과 겹치지 않도록 오프셋
+                const timeSlot = timeSlots[timeIndex];
+                const day = days[(index + 1) % days.length];
+                const room = rooms[(index + 16) % rooms.length];
+
+                courses.push({
+                    id: course.code,
+                    name: course.name,
+                    code: course.code,
+                    professor,
+                    credit: 2,
+                    priority: Math.floor(Math.random() * 3) + 3, // 3-5
+                    isRequired: false,
+                    category: 'general',
+                    timeSlots: [
+                        { day, startTime: timeSlot.start, endTime: timeSlot.end, room }
+                    ]
+                });
+            });
+
+            return courses;
+        };
+
+        const courses = generateCourses();
+        let selectedCourses = [];
+        let filteredCourses = [...courses];
+        let currentFilter = 'all';
+
+        // 시간표 그리드 생성
+        function createTimetableGrid() {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = [
+                { time: '09:00', label: '1교시' },
+                { time: '10:30', label: '2교시' },
+                { time: '12:00', label: '3교시' },
+                { time: '13:30', label: '4교시' },
+                { time: '15:00', label: '5교시' },
+                { time: '16:30', label: '6교시' },
+                { time: '18:00', label: '7교시' }
+            ];
+
+            let gridHTML = `
+                <div class="timetable-header timetable-cell">시간</div>
+                ${days.map(day => `<div class="timetable-header timetable-cell">${day}요일</div>`).join('')}
+            `;
+
+            timeSlots.forEach((timeSlot, rowIndex) => {
+                gridHTML += `<div class="timetable-header timetable-cell">
+                    <div>${timeSlot.time}</div>
+                    <div class="text-xs text-gray-500">${timeSlot.label}</div>
+                </div>`;
+                
+                days.forEach(day => {
+                    const courseSlot = findCourseAtTime(day, timeSlot.time);
+                    gridHTML += `<div class="timetable-cell">
+                        ${courseSlot ? `
+                            <div class="course-slot ${courseSlot.category}">
+                                <div class="font-medium">${courseSlot.name}</div>
+                                <div class="text-xs opacity-75">${courseSlot.professor}</div>
+                                <div class="text-xs opacity-75">${courseSlot.room}</div>
+                            </div>
+                        ` : '-'}
+                    </div>`;
+                });
+            });
+
+            document.getElementById('timetableGrid').innerHTML = gridHTML;
+        }
+
+        // 특정 시간대에 수업이 있는지 찾기
+        function findCourseAtTime(day, time) {
+            for (let course of selectedCourses) {
+                for (let slot of course.timeSlots) {
+                    if (slot.day === day && slot.startTime === time) {
+                        return {
+                            name: course.name,
+                            professor: course.professor,
+                            room: slot.room,
+                            category: course.category
+                        };
+                    }
+                }
+            }
+            return null;
+        }
+
+        // 과목 선택/해제
+        function toggleCourse(courseId) {
+            const course = courses.find(c => c.id === courseId);
+            const index = selectedCourses.findIndex(c => c.id === courseId);
+            
+            if (index === -1) {
+                selectedCourses.push(course);
+            } else {
+                selectedCourses.splice(index, 1);
+            }
+            
+            renderCourses();
+            renderSelectedCourses();
+            updateStats();
+        }
+
+        // 최적화 설정
+        const OPTIMAL_GAP_TIME = 1; // 강의 사이 시간 (교시) - 1순위
+        const MAX_CONTINUOUS_TIME = 4; // 최대 연강시간 (교시) - 2순위
+        
+        // 18학점 자동 선택 (현실적인 최적화)
+        function autoSelectOptimal() {
+            selectedCourses = [];
+            
+            // 1단계: 전공필수 과목 우선 선택
+            const required = courses.filter(c => c.isRequired);
+            selectedCourses = [...required];
+            
+            // 2단계: 현실적인 최적화 알고리즘
+            const allCourses = courses.filter(c => !c.isRequired);
+            let bestScore = -1;
+            let bestCombination = [...selectedCourses];
+            
+            // 강의간격 최우선 백트래킹 (3교시 이상 간격 완전 제거)
+            function findGapOptimizedCombination(currentCourses, remainingCourses, targetCredits, maxIterations = 5000) {
+                let iterations = 0;
+                let foundValidCombination = false;
+                
+                function explore(currentCourses, remainingCourses, targetCredits) {
+                    iterations++;
+                    if (iterations > maxIterations) return; // 성능 제한
+                    
+                    const currentCredits = getTotalCredits(currentCourses);
+                    
+                    // 목표 학점 달성 시 강의간격만 평가
+                    if (currentCredits >= targetCredits) {
+                        const gapScore = calculateGapOnlyScore(currentCourses);
+                        
+                        // 3교시 이상 간격이 없는 조합만 고려
+                        if (gapScore > -999999) {
+                            foundValidCombination = true;
+                            if (gapScore > bestScore) {
+                                bestScore = gapScore;
+                                bestCombination = [...currentCourses];
+                            }
+                        }
+                        return;
+                    }
+                    
+                    // 남은 과목이 없으면 종료
+                    if (remainingCourses.length === 0) return;
+                    
+                    // 현재 조합이 목표 학점을 초과하면 종료
+                    if (currentCredits > targetCredits) return;
+                    
+                    // 강의간격 최우선으로 과목 정렬
+                    const gapOptimizedCourses = sortCoursesForGapOptimization(remainingCourses, currentCourses);
+                    
+                    // 모든 과목을 고려하되, 강의간격이 좋은 순서로 탐색
+                    for (let i = 0; i < gapOptimizedCourses.length; i++) {
+                        const course = gapOptimizedCourses[i];
+                        const newCourses = [...currentCourses, course];
+                        
+                        // 충돌 체크 및 학점 제한
+                        if (checkConflicts(newCourses).length === 0 && getTotalCredits(newCourses) <= 21) {
+                            const newRemaining = remainingCourses.filter(c => c !== course);
+                            explore(newCourses, newRemaining, targetCredits);
+                        }
+                    }
+                }
+                
+                explore(currentCourses, remainingCourses, targetCredits);
+                
+                // 3교시 이상 간격이 없는 조합을 찾지 못했다면 경고
+                if (!foundValidCombination) {
+                    console.warn('3교시 이상 간격이 없는 18학점 조합을 찾지 못했습니다. 더 많은 과목 데이터가 필요할 수 있습니다.');
+                }
+            }
+            
+            findGapOptimizedCombination(selectedCourses, allCourses, 18);
+            selectedCourses = bestCombination;
+            
+            renderCourses();
+            renderSelectedCourses();
+            updateStats();
+            
+            // 최적화 완료 후 즉시 시간표 생성 (알림 없이)
+            if (selectedCourses.length > 0) {
+                generateTimetable(true);
+            }
+        }
+        
+        // 강의간격 최우선 과목 정렬
+        function sortCoursesForGapOptimization(remainingCourses, currentCourses) {
+            return remainingCourses.sort((a, b) => {
+                const scoreA = calculateGapOptimizedScore(a, currentCourses);
+                const scoreB = calculateGapOptimizedScore(b, currentCourses);
+                return scoreB - scoreA;
+            });
+        }
+        
+        // 강의간격 최우선 점수 계산
+        function calculateGapOptimizedScore(course, currentCourses) {
+            // 우선순위는 무시하고 강의간격만 고려
+            let score = 0;
+            
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            
+            course.timeSlots.forEach(slot => {
+                const dayIndex = days.indexOf(slot.day);
+                const timeIndex = timeSlots.indexOf(slot.startTime);
+                
+                if (dayIndex !== -1 && timeIndex !== -1) {
+                    // 강의간격 분석 (절대 우선!)
+                    const gapBefore = analyzeGapBefore(currentCourses, course, dayIndex, timeIndex);
+                    const gapAfter = analyzeGapAfter(currentCourses, course, dayIndex, timeIndex);
+                    
+                    // 강의간격만으로 점수 계산 (우선순위 무시)
+                    if (gapBefore === 1 || gapAfter === 1) {
+                        score += 2000; // 1교시 간격 (절대 최고!)
+                    } else if (gapBefore === 0 || gapAfter === 0) {
+                        score += 1000; // 연강 (좋음)
+                    } else if (gapBefore === 2 || gapAfter === 2) {
+                        score += 300; // 2교시 간격 (허용)
+                    } else if (gapBefore === 3 || gapAfter === 3) {
+                        score += 100; // 3교시 간격 (최소)
+                    } else if (gapBefore >= 4 || gapAfter >= 4) {
+                        score -= 500; // 4교시 이상 간격 (강한 감점)
+                    }
+                    
+                    // 연강시간 제한
+                    const continuousTime = calculateContinuousTimeForCourse(currentCourses, course, dayIndex, timeIndex);
+                    if (continuousTime > MAX_CONTINUOUS_TIME) {
+                        score -= 1000; // 연강시간 초과 시 강한 감점
+                    }
+                }
+            });
+            
+            return score;
+        }
+        
+        // 강의간격만을 위한 조합 점수 계산 (3교시 이상 간격 완전 제거)
+        function calculateGapOnlyScore(courses) {
+            // 3교시 이상 간격이 있으면 아예 0점 (완전 제거)
+            if (hasLongGaps(courses)) {
+                return -999999; // 3교시 이상 간격이 있으면 완전 배제
+            }
+            
+            let totalScore = 0;
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            
+            // 모든 과목의 모든 시간대에 대해 강의간격 분석
+            courses.forEach(course => {
+                course.timeSlots.forEach(slot => {
+                    const dayIndex = days.indexOf(slot.day);
+                    const timeIndex = timeSlots.indexOf(slot.startTime);
+                    
+                    if (dayIndex !== -1 && timeIndex !== -1) {
+                        const gapBefore = analyzeGapBefore(courses, course, dayIndex, timeIndex);
+                        const gapAfter = analyzeGapAfter(courses, course, dayIndex, timeIndex);
+                        
+                        // 강의간격 점수 (3교시 이상 간격은 이미 제외됨)
+                        if (gapBefore === 1 || gapAfter === 1) {
+                            totalScore += 1000; // 1교시 간격 (최고)
+                        } else if (gapBefore === 0 || gapAfter === 0) {
+                            totalScore += 500; // 연강 (좋음)
+                        } else if (gapBefore === 2 || gapAfter === 2) {
+                            totalScore += 200; // 2교시 간격 (허용)
+                        }
+                        
+                        // 연강시간 제한
+                        const continuousTime = calculateContinuousTimeForCourse(courses, course, dayIndex, timeIndex);
+                        if (continuousTime > MAX_CONTINUOUS_TIME) {
+                            totalScore -= 1000; // 연강시간 초과 시 강한 감점
+                        }
+                    }
+                });
+            });
+            
+            return totalScore;
+        }
+        
+        // 3교시 이상 간격이 있는지 확인
+        function hasLongGaps(courses) {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            
+            for (let course of courses) {
+                for (let slot of course.timeSlots) {
+                    const dayIndex = days.indexOf(slot.day);
+                    const timeIndex = timeSlots.indexOf(slot.startTime);
+                    
+                    if (dayIndex !== -1 && timeIndex !== -1) {
+                        const gapBefore = analyzeGapBefore(courses, course, dayIndex, timeIndex);
+                        const gapAfter = analyzeGapAfter(courses, course, dayIndex, timeIndex);
+                        
+                        // 3교시 이상 간격이 있으면 true 반환
+                        if (gapBefore >= 3 || gapAfter >= 3) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            
+            return false; // 3교시 이상 간격이 없음
+        }
+        
+        // 강의간격 최우선 과목 점수 계산
+        function calculateRealisticCourseScore(course, currentCourses) {
+            // 우선순위는 최소화하고 강의간격을 최우선으로
+            let score = course.priority * 2; // 기본 우선순위 점수를 크게 줄임
+            
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            
+            course.timeSlots.forEach(slot => {
+                const dayIndex = days.indexOf(slot.day);
+                const timeIndex = timeSlots.indexOf(slot.startTime);
+                
+                if (dayIndex !== -1 && timeIndex !== -1) {
+                    // 강의간격 분석 (가장 중요!)
+                    const gapBefore = analyzeGapBefore(currentCourses, course, dayIndex, timeIndex);
+                    const gapAfter = analyzeGapAfter(currentCourses, course, dayIndex, timeIndex);
+                    
+                    // 강의간격을 최우선으로 점수 계산
+                    if (gapBefore === 1 || gapAfter === 1) {
+                        score += 1000; // 1교시 간격 (최고 우선!)
+                    } else if (gapBefore === 0 || gapAfter === 0) {
+                        score += 500; // 연강 (좋음)
+                    } else if (gapBefore === 2 || gapAfter === 2) {
+                        score += 200; // 2교시 간격 (허용)
+                    } else if (gapBefore === 3 || gapAfter === 3) {
+                        score += 50; // 3교시 간격 (최소 점수)
+                    } else if (gapBefore >= 4 || gapAfter >= 4) {
+                        score -= 200; // 4교시 이상 간격 (강한 감점)
+                    }
+                    
+                    // 연강시간 제한 (2순위)
+                    const continuousTime = calculateContinuousTimeForCourse(currentCourses, course, dayIndex, timeIndex);
+                    if (continuousTime > MAX_CONTINUOUS_TIME) {
+                        score -= 500; // 연강시간 초과 시 강한 감점
+                    }
+                }
+            });
+            
+            return score;
+        }
+        
+        // 공강 최적화를 위한 과목 정렬
+        function sortCoursesForOptimalGaps(remainingCourses, currentCourses) {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            
+            return remainingCourses.sort((a, b) => {
+                // 각 과목의 공강 최적화 점수 계산
+                const scoreA = calculateCourseGapScore(a, currentCourses);
+                const scoreB = calculateCourseGapScore(b, currentCourses);
+                
+                return scoreB - scoreA; // 높은 점수부터
+            });
+        }
+        
+        // 과목별 강의 간격 최적화 점수 계산
+        function calculateCourseGapScore(course, currentCourses) {
+            let score = course.priority * 10; // 기본 우선순위 점수
+            
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            
+            // 각 시간대별로 강의 간격 최적화 점수 계산
+            course.timeSlots.forEach(slot => {
+                const dayIndex = days.indexOf(slot.day);
+                const timeIndex = timeSlots.indexOf(slot.startTime);
+                
+                if (dayIndex !== -1 && timeIndex !== -1) {
+                    // 강의 간격 분석
+                    const gapBefore = analyzeGapBefore(currentCourses, course, dayIndex, timeIndex);
+                    const gapAfter = analyzeGapAfter(currentCourses, course, dayIndex, timeIndex);
+                    
+                    // 1순위: 강의 사이 시간이 1교시(1시간)이어야 함 (하지만 현실적으로는 어려움)
+                    if (gapBefore === OPTIMAL_GAP_TIME || gapAfter === OPTIMAL_GAP_TIME) {
+                        score += 300; // 최고 점수
+                    } else if (gapBefore === 0 || gapAfter === 0) {
+                        score += 200; // 연강도 괜찮음
+                    } else if (gapBefore === 2 || gapAfter === 2) {
+                        score += 100; // 2교시 간격도 허용
+                    } else if (gapBefore === 3 || gapAfter === 3) {
+                        score += 50; // 3교시 간격도 부분 점수
+                    } else if (gapBefore >= 4 || gapAfter >= 4) {
+                        score -= 50; // 4교시 이상 간격만 감점
+                    }
+                    
+                    // 2순위: 연강시간이 4시간을 넘으면 안됨
+                    const continuousTime = calculateContinuousTimeForCourse(currentCourses, course, dayIndex, timeIndex);
+                    if (continuousTime > MAX_CONTINUOUS_TIME) {
+                        score -= 150; // 연강시간 초과 시 강한 감점
+                    }
+                }
+            });
+            
+            return score;
+        }
+        
+        // 강의 이전 간격 분석
+        function analyzeGapBefore(currentCourses, newCourse, dayIndex, timeIndex) {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            const day = days[dayIndex];
+            
+            // 임시로 과목 추가
+            const tempCourses = [...currentCourses, newCourse];
+            
+            let gapCount = 0;
+            
+            // 해당 시간 이전의 공강 계산
+            for (let i = timeIndex - 1; i >= 0; i--) {
+                const hasClass = tempCourses.some(course => 
+                    course.timeSlots.some(slot => 
+                        slot.day === day && slot.startTime === timeSlots[i]
+                    )
+                );
+                if (!hasClass) {
+                    gapCount++;
+                } else {
+                    break; // 바로 이전 강의까지의 간격만 계산
+                }
+            }
+            
+            return gapCount;
+        }
+        
+        // 강의 이후 간격 분석
+        function analyzeGapAfter(currentCourses, newCourse, dayIndex, timeIndex) {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            const day = days[dayIndex];
+            
+            // 임시로 과목 추가
+            const tempCourses = [...currentCourses, newCourse];
+            
+            let gapCount = 0;
+            
+            // 해당 시간 이후의 공강 계산
+            for (let i = timeIndex + 1; i < timeSlots.length; i++) {
+                const hasClass = tempCourses.some(course => 
+                    course.timeSlots.some(slot => 
+                        slot.day === day && slot.startTime === timeSlots[i]
+                    )
+                );
+                if (!hasClass) {
+                    gapCount++;
+                } else {
+                    break; // 바로 다음 강의까지의 간격만 계산
+                }
+            }
+            
+            return gapCount;
+        }
+        
+        // 특정 과목의 연강시간 계산
+        function calculateContinuousTimeForCourse(currentCourses, newCourse, dayIndex, timeIndex) {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            const day = days[dayIndex];
+            
+            const tempCourses = [...currentCourses, newCourse];
+            
+            let continuousCount = 1; // 현재 과목 포함
+            
+            // 앞쪽 연강 계산
+            for (let i = timeIndex - 1; i >= 0; i--) {
+                const hasClass = tempCourses.some(course => 
+                    course.timeSlots.some(slot => 
+                        slot.day === day && slot.startTime === timeSlots[i]
+                    )
+                );
+                if (hasClass) {
+                    continuousCount++;
+                } else {
+                    break;
+                }
+            }
+            
+            // 뒤쪽 연강 계산
+            for (let i = timeIndex + 1; i < timeSlots.length; i++) {
+                const hasClass = tempCourses.some(course => 
+                    course.timeSlots.some(slot => 
+                        slot.day === day && slot.startTime === timeSlots[i]
+                    )
+                );
+                if (hasClass) {
+                    continuousCount++;
+                } else {
+                    break;
+                }
+            }
+            
+            return continuousCount;
+        }
+        
+        // 연강 점수 계산
+        function calculateContinuousScore(currentCourses, newCourse, dayIndex, timeIndex) {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            const day = days[dayIndex];
+            
+            const tempCourses = [...currentCourses, newCourse];
+            
+            let continuousCount = 1; // 현재 과목 포함
+            
+            // 앞쪽 연강 계산
+            for (let i = timeIndex - 1; i >= 0; i--) {
+                const hasClass = tempCourses.some(course => 
+                    course.timeSlots.some(slot => 
+                        slot.day === day && slot.startTime === timeSlots[i]
+                    )
+                );
+                if (hasClass) {
+                    continuousCount++;
+                } else {
+                    break;
+                }
+            }
+            
+            // 뒤쪽 연강 계산
+            for (let i = timeIndex + 1; i < timeSlots.length; i++) {
+                const hasClass = tempCourses.some(course => 
+                    course.timeSlots.some(slot => 
+                        slot.day === day && slot.startTime === timeSlots[i]
+                    )
+                );
+                if (hasClass) {
+                    continuousCount++;
+                } else {
+                    break;
+                }
+            }
+            
+            // 최적 연강시간(4교시)에 가까울수록 높은 점수
+            if (continuousCount === OPTIMAL_CONTINUOUS_TIME) {
+                return 150; // 최적 연강시간 보너스
+            } else if (continuousCount > 0) {
+                return Math.max(0, 100 - Math.abs(continuousCount - OPTIMAL_CONTINUOUS_TIME) * 25);
+            }
+            
+            return 0;
+        }
+        
+        // 시간표 점수 계산 (공강과 연강 최적화)
+        function calculateScheduleScore(courses) {
+            let score = 0;
+            
+            // 기본 점수
+            score += 1000;
+            
+            // 충돌 감점
+            const conflicts = checkConflicts(courses);
+            score -= conflicts.length * 200;
+            
+            // 학점 점수
+            const credits = getTotalCredits(courses);
+            if (credits === 18) {
+                score += 500; // 정확히 18학점이면 보너스
+            } else {
+                score -= Math.abs(credits - 18) * 50; // 18학점에서 벗어나면 감점
+            }
+            
+            // 공강 시간 최적화 점수
+            const freeTimeScore = calculateFreeTimeScore(courses);
+            score += freeTimeScore;
+            
+            // 연강 시간 최적화 점수
+            const continuousTimeScore = calculateContinuousTimeScore(courses);
+            score += continuousTimeScore;
+            
+            // 과목 우선순위 점수
+            const priorityScore = courses.reduce((sum, course) => sum + course.priority * 10, 0);
+            score += priorityScore;
+            
+            // 필수 과목 보너스
+            const requiredCount = courses.filter(c => c.isRequired).length;
+            score += requiredCount * 100;
+            
+            return score;
+        }
+        
+        // 강의 간격 최적화 점수 계산
+        function calculateFreeTimeScore(courses) {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            let totalGapScore = 0;
+            
+            days.forEach(day => {
+                const daySchedule = [];
+                
+                // 해당 요일의 수업 시간 체크
+                timeSlots.forEach(time => {
+                    const hasClass = courses.some(course => 
+                        course.timeSlots.some(slot => 
+                            slot.day === day && slot.startTime === time
+                        )
+                    );
+                    daySchedule.push(hasClass);
+                });
+                
+                // 강의 간격 분석
+                let gapScore = 0;
+                
+                for (let i = 0; i < daySchedule.length - 1; i++) {
+                    if (daySchedule[i] && !daySchedule[i + 1]) {
+                        // 강의 후 공강 시작
+                        let gapLength = 1;
+                        for (let j = i + 2; j < daySchedule.length; j++) {
+                            if (!daySchedule[j]) {
+                                gapLength++;
+                            } else {
+                                break;
+                            }
+                        }
+                        
+                        // 강의 간격 점수 계산 (1순위)
+                        if (gapLength === OPTIMAL_GAP_TIME) {
+                            gapScore += 300; // 최적 간격(1교시) 보너스
+                        } else if (gapLength === 0) {
+                            gapScore += 200; // 연강
+                        } else if (gapLength === 2) {
+                            gapScore += 100; // 2교시 간격 허용
+                        } else if (gapLength === 3) {
+                            gapScore += 50; // 3교시 간격도 부분 점수
+                        } else if (gapLength >= 4) {
+                            gapScore -= 50; // 4교시 이상 간격만 감점
+                        }
+                    }
+                }
+                
+                totalGapScore += gapScore;
+            });
+            
+            return totalGapScore;
+        }
+        
+        // 연강 시간 최적화 점수 계산 (2순위)
+        function calculateContinuousTimeScore(courses) {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            let totalContinuousScore = 0;
+            
+            days.forEach(day => {
+                const daySchedule = [];
+                
+                // 해당 요일의 수업 시간 체크
+                timeSlots.forEach(time => {
+                    const hasClass = courses.some(course => 
+                        course.timeSlots.some(slot => 
+                            slot.day === day && slot.startTime === time
+                        )
+                    );
+                    daySchedule.push(hasClass);
+                });
+                
+                // 연강 시간 패턴 분석
+                let consecutiveClass = 0;
+                let continuousScore = 0;
+                
+                for (let i = 0; i < daySchedule.length; i++) {
+                    if (daySchedule[i]) {
+                        consecutiveClass++;
+                    } else {
+                        if (consecutiveClass > 0) {
+                            // 2순위: 연강시간이 4시간을 넘으면 안됨
+                            if (consecutiveClass <= MAX_CONTINUOUS_TIME) {
+                                continuousScore += 100; // 허용 범위 내 연강
+                            } else {
+                                continuousScore -= 150; // 4시간 초과 시 강한 감점
+                            }
+                        }
+                        consecutiveClass = 0;
+                    }
+                }
+                
+                // 하루 끝의 연강 시간도 계산
+                if (consecutiveClass > 0) {
+                    if (consecutiveClass <= MAX_CONTINUOUS_TIME) {
+                        continuousScore += 100;
+                    } else {
+                        continuousScore -= 150;
+                    }
+                }
+                
+                totalContinuousScore += continuousScore;
+            });
+            
+            return totalContinuousScore;
+        }
+
+        // 총 학점 계산
+        function getTotalCredits() {
+            return selectedCourses.reduce((sum, course) => sum + course.credit, 0);
+        }
+
+        // 공강 시간 계산 (연속된 공강 시간 분석)
+        function calculateFreeTime() {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            let totalFreeTime = 0;
+            
+            days.forEach(day => {
+                let consecutiveFree = 0;
+                
+                timeSlots.forEach(time => {
+                    const hasClass = findCourseAtTime(day, time);
+                    
+                    if (!hasClass) {
+                        consecutiveFree++;
+                    } else {
+                        if (consecutiveFree > 0) {
+                            // 연속된 공강 시간을 계산
+                            totalFreeTime += consecutiveFree;
+                        }
+                        consecutiveFree = 0;
+                    }
+                });
+                
+                // 하루 끝의 공강 시간도 계산
+                if (consecutiveFree > 0) {
+                    totalFreeTime += consecutiveFree;
+                }
+            });
+            
+            return totalFreeTime;
+        }
+        
+        // 강의 간격 분석 (상세 정보)
+        function analyzeFreeTime() {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            const gapAnalysis = [];
+            
+            days.forEach(day => {
+                const daySchedule = [];
+                
+                // 해당 요일의 수업 시간 체크
+                timeSlots.forEach(time => {
+                    const hasClass = findCourseAtTime(day, time);
+                    daySchedule.push(hasClass);
+                });
+                
+                // 강의 간격 분석
+                for (let i = 0; i < daySchedule.length - 1; i++) {
+                    if (daySchedule[i] && !daySchedule[i + 1]) {
+                        // 강의 후 공강 시작
+                        let gapLength = 1;
+                        let endIndex = i + 1;
+                        
+                        for (let j = i + 2; j < daySchedule.length; j++) {
+                            if (!daySchedule[j]) {
+                                gapLength++;
+                                endIndex = j;
+                            } else {
+                                break;
+                            }
+                        }
+                        
+                        gapAnalysis.push({
+                            day,
+                            startTime: timeSlots[i],
+                            gapStartTime: timeSlots[i + 1],
+                            gapEndTime: timeSlots[endIndex],
+                            duration: gapLength,
+                            isOptimal: gapLength === OPTIMAL_GAP_TIME,
+                            isTooLong: gapLength >= 3
+                        });
+                    }
+                }
+            });
+            
+            return gapAnalysis;
+        }
+
+        // 과목 목록 렌더링
+        function renderCourses() {
+            const courseList = document.getElementById('courseList');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            filteredCourses = courses.filter(course => {
+                const matchesSearch = course.name.toLowerCase().includes(searchTerm) ||
+                                     course.code.toLowerCase().includes(searchTerm) ||
+                                     course.professor.toLowerCase().includes(searchTerm);
+                
+                const matchesFilter = currentFilter === 'all' || course.category === currentFilter;
+                
+                return matchesSearch && matchesFilter;
+            });
+
+            courseList.innerHTML = filteredCourses.map(course => {
+                const isSelected = selectedCourses.some(c => c.id === course.id);
+                const categoryColor = {
+                    'required': 'bg-red-100 text-red-800 border-red-200',
+                    'elective': 'bg-blue-100 text-blue-800 border-blue-200',
+                    'general': 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                };
+                
+                return `
+                    <div class="course-card p-3 border rounded-lg cursor-pointer ${isSelected ? 'selected' : ''}"
+                         onclick="toggleCourse('${course.id}')">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="flex items-center mb-1">
+                                    <h4 class="font-medium">${course.name}</h4>
+                                    <span class="ml-2 px-2 py-1 text-xs rounded-full border ${categoryColor[course.category]}">
+                                        ${course.category === 'required' ? '전필' : course.category === 'elective' ? '전선' : '교양'}
+                                    </span>
+                                </div>
+                                <div class="text-sm text-gray-600 mb-2">
+                                    ${course.code} • ${course.professor} • ${course.credit}학점
+                                </div>
+                                <div class="space-y-1">
+                                    ${course.timeSlots.map(slot => `
+                                        <div class="text-xs text-gray-500">
+                                            🕐 ${slot.day} ${slot.startTime}-${slot.endTime} 📍 ${slot.room}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-medium text-gray-600 mb-2">
+                                    ⭐ ${course.priority}
+                                </div>
+                                <div class="w-4 h-4 rounded border-2 ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}">
+                                    ${isSelected ? '<div class="w-full h-full flex items-center justify-center"><div class="w-2 h-2 bg-white rounded-full"></div></div>' : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('filteredCount').textContent = filteredCourses.length;
+        }
+
+        // 선택된 과목 목록 렌더링
+        function renderSelectedCourses() {
+            const selectedList = document.getElementById('selectedCoursesList');
+            selectedList.innerHTML = selectedCourses.map(course => `
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div>
+                        <span class="font-medium">${course.name}</span>
+                        <span class="text-sm text-gray-500 ml-2">
+                            (${course.code}) - ${course.professor} - ${course.credit}학점
+                        </span>
+                    </div>
+                    <span class="text-sm text-blue-600">
+                        우선순위: ${course.priority}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        // 연강 시간 계산
+        function calculateContinuousTime() {
+            const days = ['월', '화', '수', '목', '금'];
+            const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+            let totalContinuousTime = 0;
+            
+            days.forEach(day => {
+                const daySchedule = [];
+                
+                // 해당 요일의 수업 시간 체크
+                timeSlots.forEach(time => {
+                    const hasClass = selectedCourses.some(course => 
+                        course.timeSlots.some(slot => 
+                            slot.day === day && slot.startTime === time
+                        )
+                    );
+                    daySchedule.push(hasClass);
+                });
+                
+                // 연강 시간 계산
+                let consecutiveClass = 0;
+                let maxConsecutive = 0;
+                
+                for (let i = 0; i < daySchedule.length; i++) {
+                    if (daySchedule[i]) {
+                        consecutiveClass++;
+                        maxConsecutive = Math.max(maxConsecutive, consecutiveClass);
+                    } else {
+                        consecutiveClass = 0;
+                    }
+                }
+                
+                totalContinuousTime += maxConsecutive;
+            });
+            
+            return totalContinuousTime;
+        }
+
+        // 통계 업데이트
+        function updateStats() {
+            const totalCredits = getTotalCredits();
+            const freeTime = calculateFreeTime();
+            const continuousTime = calculateContinuousTime();
+            const scheduleScore = selectedCourses.length > 0 ? calculateScheduleScore(selectedCourses) : 0;
+            
+            document.getElementById('totalCourses').textContent = courses.length;
+            document.getElementById('selectedCourses').textContent = selectedCourses.length;
+            document.getElementById('totalCredits').textContent = totalCredits;
+            document.getElementById('totalCredits2').textContent = totalCredits;
+            document.getElementById('selectedCount').textContent = selectedCourses.length;
+            document.getElementById('freeTime').textContent = freeTime;
+            document.getElementById('continuousTime').textContent = continuousTime;
+            document.getElementById('scheduleScore').textContent = Math.round(scheduleScore);
+            document.getElementById('currentScore').textContent = Math.round(scheduleScore);
+            
+            document.getElementById('generateBtn').disabled = selectedCourses.length === 0;
+        }
+
+        // 시간표 생성
+        function generateTimetable(skipAlert = false) {
+            if (selectedCourses.length === 0) {
+                if (!skipAlert) {
+                    alert('최소 하나 이상의 과목을 선택해주세요.');
+                }
+                return;
+            }
+
+            // 충돌 검사
+            const conflicts = checkConflicts(selectedCourses);
+            
+            if (conflicts.length > 0) {
+                if (!skipAlert) {
+                    alert(`시간 충돌이 발견되었습니다:\n${conflicts.map(c => c.courses.map(course => course.name).join(', ')).join('\n')}`);
+                }
+                return;
+            }
+
+            // 시간표 표시
+            document.getElementById('timetableSection').style.display = 'block';
+            createTimetableGrid();
+            
+            // 최적화 정보 수집
+            const totalCredits = getTotalCredits();
+            const freeTime = calculateFreeTime();
+            const continuousTime = calculateContinuousTime();
+            const scheduleScore = calculateScheduleScore(selectedCourses);
+            
+            // 최적화 분석
+            const freeTimeScore = calculateFreeTimeScore(selectedCourses);
+            const continuousTimeScore = calculateContinuousTimeScore(selectedCourses);
+            
+            // 강의 간격 상세 분석
+            const gapAnalysis = analyzeFreeTime();
+            const optimalGaps = gapAnalysis.filter(gap => gap.isOptimal).length;
+            const longGaps = gapAnalysis.filter(gap => gap.isTooLong).length;
+            
+            // 상세 정보 표시
+            const message = `
+시간표가 성공적으로 생성되었습니다!
+
+📊 기본 정보:
+• 총 학점: ${totalCredits}학점
+• 선택된 과목: ${selectedCourses.length}개
+• 시간 충돌: ${conflicts.length}개
+
+⏰ 시간 최적화:
+• 총 공강 시간: ${freeTime}개 교시
+• 최적 강의간격(1교시): ${optimalGaps}개 ✅
+• 긴 강의간격(3교시 이상): ${longGaps}개 ⚠️
+• 연강 시간: ${continuousTime}개 교시
+• 강의간격 최적화 점수: ${Math.round(freeTimeScore)}점
+• 연강시간 최적화 점수: ${Math.round(continuousTimeScore)}점
+
+🎯 종합 최적화 점수: ${Math.round(scheduleScore)}점
+
+${totalCredits === 18 ? '✅ 목표 학점(18학점) 달성!' : `⚠️ 목표 학점과 ${Math.abs(18 - totalCredits)}학점 차이`}
+${optimalGaps > 0 ? `✅ 최적 강의간격(1교시) ${optimalGaps}개 달성!` : '⚠️ 최적 강의간격 부족'}
+${longGaps === 0 ? `✅ 긴 강의간격(3교시 이상) 0개 (완벽한 최적화!)` : `❌ 긴 강의간격(3교시 이상) ${longGaps}개 존재 (최적화 실패)`}
+${continuousTimeScore > 0 ? '✅ 연강시간 제한 준수!' : '⚠️ 연강시간 제한 위반'}
+
+📋 강의 간격 상세:
+${gapAnalysis.map(gap => 
+  `• ${gap.day}요일 ${gap.startTime} 후 ${gap.gapStartTime}-${gap.gapEndTime} (${gap.duration}교시 간격) ${gap.isOptimal ? '✅' : gap.isTooLong ? '⚠️' : '🔸'}`
+).join('\n')}
+            `;
+            
+            alert(message);
+        }
+
+        // 충돌 검사
+        function checkConflicts(courses) {
+            const conflicts = [];
+            
+            for (let i = 0; i < courses.length; i++) {
+                for (let j = i + 1; j < courses.length; j++) {
+                    const course1 = courses[i];
+                    const course2 = courses[j];
+                    
+                    for (const slot1 of course1.timeSlots) {
+                        for (const slot2 of course2.timeSlots) {
+                            if (slot1.day === slot2.day && 
+                                slot1.startTime === slot2.startTime && 
+                                slot1.endTime === slot2.endTime) {
+                                conflicts.push({
+                                    courses: [course1, course2],
+                                    timeSlot: slot1
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return conflicts;
+        }
+
+        // 필터 기능
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+                renderCourses();
+            });
+        });
+
+        // 검색 기능
+        document.getElementById('searchInput').addEventListener('input', renderCourses);
+
+        // 초기 렌더링
+        renderCourses();
+        updateStats();
+        
+        // 첫 번째 필터 버튼 활성화
+        document.querySelector('.filter-btn[data-filter="all"]').classList.add('active');
+    </script>
+</body>
+</html>
